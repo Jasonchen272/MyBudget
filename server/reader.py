@@ -2,12 +2,8 @@ import csv
 import gspread
 import time
 
-MONTH = 'april'
-
 sources = ['wells_fargo', 'discover', 'capital_one']
-
-file = f"wells_fargo_{MONTH}.csv"
-
+months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
 transactions =[]
 
 def wellsFargoTrans(file):
@@ -28,9 +24,8 @@ def wellsFargoTrans(file):
                     transactions.append(transaction)
             return transactions
     except IOError as e:
-        return []
-    
-file = f"discover_{MONTH}.csv"
+        return transactions
+
 
     
 def discoverTransactions(file):
@@ -50,19 +45,32 @@ def discoverTransactions(file):
                     transactions.append(transaction)
             return transactions
     except IOError as e:
-        return []
+        return transactions
+    
+def capitalOneTransactions(file):
+    try:
+        with open(file, mode = 'r') as csvfile:
+            for line in csvfile:
+                date = line[0]
+    except IOError as e:
+        return transactions
+
+
+
 sa = gspread.service_account()
 sh = sa.open("Expenses 2")
 
-wks = sh.worksheet(f"{MONTH}")
 
-file = f"wells_fargo_{MONTH}.csv"
+for month in months:
+    transactions = []
+    file = f"wells_fargo_{month}.csv"
+    rows = wellsFargoTrans(file)
+    file = f"discover_{month}.csv"
+    discoverTransactions(file)
 
-rows = wellsFargoTrans(file)
-
-file = f"discover_{MONTH}.csv"
-discoverTransactions(file)
-
-for row in rows:
-    wks.insert_row([row[0], row[2], row[3], row[1]], 7)
-    time.sleep(2)
+    wks = sh.worksheet(f"{month}")
+    for row in rows:
+        wks.insert_row([row[0], row[2], row[3], row[1]], 7)
+        time.sleep(2)
+    wks.update_acell('B2', '=SUMIF(D7:D,">0")')
+    wks.update_acell('B3', '=SUMIF(D7:D,"<0")')
