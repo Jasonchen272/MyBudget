@@ -3,12 +3,22 @@ from flask_cors import CORS
 import csv
 import gspread
 import time
+import os
+from werkzeug.utils import secure_filename
+
+
+
+UPLOAD_FOLDER = './UploadedFiles/'
+ALLOWED_EXTENSIONS = {'csv'}
 
 transactions = []
 
-def wellsFargoTrans(file):
+
+def wellsFargoTrans(file): #add to transactions with wells fargo csv
+    transactions = []
     try:
         with open(file, mode = 'r') as csvfile:
+            
             csv_reader = csv.reader(csvfile)
             for line in csv_reader:
                 if line:
@@ -19,7 +29,7 @@ def wellsFargoTrans(file):
                     if "DISCOVER E-PAYMENT" in name:
                         continue
                     elif "UNIVERSITY OF MI UMNPAY" in name:
-                        category = "TA payment"
+                        category = "SALARY"
                     transaction = ([date, amount, name, category])
                     transactions.append(transaction)
             return transactions
@@ -28,7 +38,9 @@ def wellsFargoTrans(file):
 
 
     
-def discoverTransactions(file):
+def discoverTransactions(file): #add to transactions with discover csv
+    transactions = []
+
     try:
         with open(file, mode = 'r') as csvfile:
             csv_reader = csv.reader(csvfile)
@@ -47,7 +59,9 @@ def discoverTransactions(file):
     except IOError as e:
         return transactions
     
-def capitalOneTransactions(file):
+def capitalOneTransactions(file): #add to transactions with capital one csv #TODO finish after I get format
+    transactions = []
+
     try:
         with open(file, mode = 'r') as csvfile:
             for line in csvfile:
@@ -57,36 +71,47 @@ def capitalOneTransactions(file):
 
 
 
-sa = gspread.service_account()
-sh = sa.open("Expenses 2")
+sa = gspread.service_account()  
+sh = sa.open("Expenses 2") #sheets we will edit
+
+app = Flask(__name__)   
+CORS(app, resources={r"/files": {"origins": "http://localhost:3000"},
+                     r"/uploadSheets": {"origins": "http://localhost:3000"}})
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+def allowed_file(filename): #only csv files
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def write_data(f):
-    print("write")
-    transactions = []
-    cur_file = f['file']
-    if f['bank'] == "Wells Fargo":
-        rows = wellsFargoTrans(cur_file)
-    elif f['bank'] == "Discover":
-        rows = discoverTransactions(cur_file)
-    elif f['bank'] == "Capital One":
-        rows = capitalOneTransactions(cur_file)
+all_files = []
 
-    print("after transactions")
+def write_data():
+    global all_files
+    try:
+        for f in all_files:
+            rows = []
+            cur_file = f['filename']
+            if f['bank'] == "wells_fargo":
+                rows = wellsFargoTrans(cur_file)
+            elif f['bank'] == "discover":
+                rows = discoverTransactions(cur_file)
+            elif f['bank'] == "capital_one":
+                rows = capitalOneTransactions(cur_file)
 
-    wks = sh.worksheet(f"{f['month']}")
-    print("after wks")
-    for row in rows:
-        print("in loop")
-        wks.insert_row([row[0], row[2], row[3], row[1]], 7)
-        time.sleep(2)
-    print("after writes")
-    wks.update_acell('B2', '=SUMIF(D7:D,">0")')
-    wks.update_acell('B3', '=SUMIF(D7:D,"<0")')
+            wks = sh.worksheet(f"{f['month']}")
+            for row in rows:
+                wks.insert_row([row[0], row[2], row[3], row[1]], 7)
+                time.sleep(2)
+            wks.update_acell('B2', '=SUMIF(D7:D,">0")')
+            wks.update_acell('B3', '=SUMIF(D7:D,"<0")')
+            os.remove(cur_file)
+            del all_files[0]
+        all_files = []
+        return jsonify({'Success': True}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
-app = Flask(__name__)
-CORS(app, resources={r"/files": {"origins": "http://localhost:3000"}})
 
 
 @app.route('/members')
@@ -95,6 +120,7 @@ def members():
 
 @app.route('/files', methods=['GET','POST'])
 def files():
+    global all_files
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file part'}), 400
@@ -107,17 +133,22 @@ def files():
         print(f"Received file: {file_name}, month: {month}, bank: {bank}")
 
 
-        if file.filename == '':
+        if file.filename == '' or not allowed_file(file.filename):
             return jsonify({'error': 'No selected file'}), 400
 
-        print("before write")
 
-        print("written")
+        filename = secure_filename(file.filename)
+        file.save(app.config['UPLOAD_FOLDER']+ filename)
 
+        all_files.append({'file': file, 'month': month, 'bank': bank, "filename": app.config['UPLOAD_FOLDER']+file_name})
+        write_data()
 
         return jsonify({'message': 'File successfully uploaded', 'fileName': file_name, 'month': month, 'bank': bank}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+
+
 
 
 
