@@ -111,42 +111,41 @@ def write_data():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
-
-
-@app.route('/members')
-def members():
-    return {'members': ["Member 1", "Member 2", "Member 3"]}
-
-@app.route('/files', methods=['GET','POST'])
+@app.route('/files', methods=['POST', 'GET'])
 def files():
-    global all_files
-    try:
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file part'}), 400
+    if (request.method == 'POST'):
+        global all_files
+        try:
+            print(request)
+            if 'file' not in request.files:
+                print(request.files)
+                return jsonify({'error': 'No file part'}), 400
 
-        file = request.files['file']
-        file_name = request.form.get('fileName')
-        month = request.form.get('month')
-        bank = request.form.get('bank')
+            file = request.files['file']
+            file_name = request.form.get('fileName')
+            month = request.form.get('month')
+            bank = request.form.get('bank')
 
-        print(f"Received file: {file_name}, month: {month}, bank: {bank}")
-
-
-        if file.filename == '' or not allowed_file(file.filename):
-            return jsonify({'error': 'No selected file'}), 400
+            print(f"Received file: {file_name}, month: {month}, bank: {bank}")
 
 
-        filename = secure_filename(file.filename)
-        file.save(app.config['UPLOAD_FOLDER']+ filename)
+            if file.filename == '' or not allowed_file(file.filename):
+                return jsonify({'error': 'Wrong file type or name'}), 400
 
-        all_files.append({'file': file, 'month': month, 'bank': bank, "filename": app.config['UPLOAD_FOLDER']+file_name})
-        write_data()
 
-        return jsonify({'message': 'File successfully uploaded', 'fileName': file_name, 'month': month, 'bank': bank}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    
+            filename = secure_filename(file.filename)
+            file.save(app.config['UPLOAD_FOLDER']+ filename)
+
+            all_files.append({'file': file, 'month': month, 'bank': bank, "filename": app.config['UPLOAD_FOLDER']+file_name})
+            write_data()
+
+            return jsonify({'message': 'File successfully uploaded', 'fileName': file_name, 'month': month, 'bank': bank}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    elif(request.method == 'GET'):
+        print(request)
+        return jsonify({'message': 'GET successfully'})
+     
 
 
 
