@@ -5,6 +5,7 @@ import gspread
 import time
 import os
 from werkzeug.utils import secure_filename
+import json
 
 
 
@@ -26,13 +27,15 @@ def wellsFargoTrans(file): #add to transactions with wells fargo csv
                     amount = float(line[1])
                     name = line[4]
                     category = "other"
-                    if "DISCOVER E-PAYMENT" in name:
+                    if "DISCOVER E-PAYMENT" in name or "CAPITAL ONE MOBILE PMT" in name:
                         continue
                     elif "UNIVERSITY OF MI UMNPAY" in name:
                         category = "SALARY"
                     transaction = ([date, amount, name, category])
                     transactions.append(transaction)
             return transactions
+    except IOError as e:
+        return transactions         
     except IOError as e:
         return transactions
 
@@ -58,15 +61,60 @@ def discoverTransactions(file): #add to transactions with discover csv
             return transactions
     except IOError as e:
         return transactions
+
     
-def capitalOneTransactions(file): #add to transactions with capital one csv #TODO finish after I get format
+def capitalOneTransactions(file): #add to transactions with capital one csv 
     transactions = []
 
     try:
         with open(file, mode = 'r') as csvfile:
-            for line in csvfile:
-                date = line[0]
+            csv_reader = csv.reader(csvfile)
+            next(csv_reader)
+
+            for line in csv_reader:
+                print("in loop")
+                if line:
+                    date = line[0]
+                    name = line[3]
+                    print(name)
+                    if "CAPITAL ONE MOBILE PYMT" in name:
+                        print("payment")
+                        continue
+                    category = line[4]
+                    amount = -float(line[5])
+                    transaction = ([date, amount, name, category])
+                    print(transaction)
+                    transactions.append(transaction)
+            return transactions
     except IOError as e:
+        print(e)
+        return transactions
+    except Exception as e:
+        print(e)
+        return transactions
+    
+def otherTransactions(file, formatObj):
+    transactions = []
+
+    try:
+        with open(file, mode = 'r') as csvfile:
+            csv_reader = csv.reader(csvfile)
+            if formatObj['skip']:
+                next(csv_reader)
+
+            for line in csv_reader:
+                if line:
+                    date = line[formatObj['date']]
+                    amount = -float(line[formatObj['amount']]) if line[formatObj['isCredit']] else float(line[formatObj['amount']])
+                    name = line[formatObj['description']]
+                    category = 'other'
+                    transaction = ([date, amount, name, category])
+                    transactions.append(transaction)
+            return transactions
+    except IOError as e:
+        return transactions
+    except Exception as e:
+        print(e)
         return transactions
 
 
@@ -85,7 +133,7 @@ def allowed_file(filename): #only csv files
 
 all_files = []
 
-def write_data():
+def write_data(formatObj = None):
     global all_files
     try:
         for f in all_files:
@@ -97,6 +145,9 @@ def write_data():
                 rows = discoverTransactions(cur_file)
             elif f['bank'] == "capital_one":
                 rows = capitalOneTransactions(cur_file)
+            elif f['bank'] == "other":
+                rows = otherTransactions(cur_file, formatObj)
+
 
             wks = sh.worksheet(f"{f['month']}")
             for row in rows:
@@ -137,14 +188,18 @@ def files():
             file.save(app.config['UPLOAD_FOLDER']+ filename)
 
             all_files.append({'file': file, 'month': month, 'bank': bank, "filename": app.config['UPLOAD_FOLDER']+file_name})
-            write_data()
+            if bank == 'other':
+                formatObj = request.form.get('otherFormat')
+                write_data(json.loads(formatObj))
+            else:
+                write_data()
 
             return jsonify({'message': 'File successfully uploaded', 'fileName': file_name, 'month': month, 'bank': bank}), 200
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     elif(request.method == 'GET'):
         print(request)
-        return jsonify({'message': 'GET successfully'})
+        return jsonify(all_files)
      
 
 
