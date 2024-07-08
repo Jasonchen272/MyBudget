@@ -72,24 +72,17 @@ def capitalOneTransactions(file): #add to transactions with capital one csv
             next(csv_reader)
 
             for line in csv_reader:
-                print("in loop")
                 if line:
                     date = line[0]
                     name = line[3]
-                    print(name)
                     if "CAPITAL ONE MOBILE PYMT" in name:
-                        print("payment")
                         continue
                     category = line[4]
                     amount = -float(line[5])
                     transaction = ([date, amount, name, category])
-                    print(transaction)
                     transactions.append(transaction)
             return transactions
     except IOError as e:
-        print(e)
-        return transactions
-    except Exception as e:
         print(e)
         return transactions
     
@@ -101,12 +94,15 @@ def otherTransactions(file, formatObj):
             csv_reader = csv.reader(csvfile)
             if formatObj['skip']:
                 next(csv_reader)
+            paymentMessages = formatObj['paymentMessages']
 
             for line in csv_reader:
                 if line:
                     date = line[formatObj['date']]
-                    amount = -float(line[formatObj['amount']]) if line[formatObj['isCredit']] else float(line[formatObj['amount']])
+                    amount = -float(line[formatObj['amount']]) if formatObj['isCredit'] else float(line[formatObj['amount']])
                     name = line[formatObj['description']]
+                    if any(message in name for message in paymentMessages):
+                        continue
                     category = 'other'
                     transaction = ([date, amount, name, category])
                     transactions.append(transaction)
@@ -124,7 +120,8 @@ sh = sa.open("Expenses 2") #sheets we will edit
 
 app = Flask(__name__)   
 CORS(app, resources={r"/files": {"origins": "http://localhost:3000"},
-                     r"/uploadSheets": {"origins": "http://localhost:3000"}})
+                     r"/uploadSheets": {"origins": "http://localhost:3000"},
+                     r"/create_sheet": {"origins": "http://localhost:3000"}})
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 def allowed_file(filename): #only csv files
@@ -167,9 +164,7 @@ def files():
     if (request.method == 'POST'):
         global all_files
         try:
-            print(request)
             if 'file' not in request.files:
-                print(request.files)
                 return jsonify({'error': 'No file part'}), 400
 
             file = request.files['file']
@@ -190,6 +185,7 @@ def files():
             all_files.append({'file': file, 'month': month, 'bank': bank, "filename": app.config['UPLOAD_FOLDER']+file_name})
             if bank == 'other':
                 formatObj = request.form.get('otherFormat')
+                print(formatObj)
                 write_data(json.loads(formatObj))
             else:
                 write_data()
@@ -198,9 +194,16 @@ def files():
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     elif(request.method == 'GET'):
-        print(request)
         return jsonify(all_files)
-     
+    
+@app.route('/create_sheet', methods=['GET', 'POST'])
+def create_sheet():
+    if request.method == 'POST':
+        sh = sa.create(request.form.get('sheetName'))
+        sh.share('jchen.012004@gmail.com', perm_type='user', role='writer')
+        return jsonify({'message': 'Sheet created successfully','sheetName': request.form.get('sheetName')}), 200
+    elif(request.method == 'GET'):
+        return jsonify([])
 
 
 
