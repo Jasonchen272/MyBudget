@@ -9,6 +9,7 @@ function ImportFiles() {
     const [fileTypeError, setFileTypeError] = useState(false)
     const [otherFormat, setOtherFormat] = useState({'skip': false, 'date': 0, 'description': 1, 'amount': 2, 'isCredit': false, 'paymentMessages': []})
     const [readingError, setReadingError] = useState(false)
+    const [isUploading, setIsUploading] = useState(false)
   
     const months = [
       'January',
@@ -62,6 +63,7 @@ function ImportFiles() {
   
     const handleSubmit = async (event) =>{
       event.preventDefault()
+      setIsUploading(true)
   
   
       if (!file) {
@@ -91,6 +93,8 @@ function ImportFiles() {
         })
         
       } catch (error) {
+      } finally {
+        setIsUploading(false)
       }
       setOtherFormat({'skip': false, 'date': 0, 'description': 1, 'amount': 2, 'isCredit': false, 'paymentMessages': []})
     }
@@ -113,7 +117,7 @@ function ImportFiles() {
         <option value="capital_one">Capital One</option>
         <option value="other">Other</option>
       </select>  
-      <button type="submit">Upload</button>
+      <button type="submit" disabled={isUploading}>{isUploading ? "Uploading" : "Upload"}</button>
     </form>
     <div style={{ display: bank === "other" ? "block" : "none" }}> 
       Please input the format of your file

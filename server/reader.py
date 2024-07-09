@@ -36,7 +36,7 @@ def wellsFargoTrans(file): #add to transactions with wells fargo csv
                     transactions.append(transaction)
             return transactions
     except Exception as e:
-        return None
+        return False
 
 
     
@@ -59,7 +59,7 @@ def discoverTransactions(file): #add to transactions with discover csv
                     transactions.append(transaction)
             return transactions
     except Exception as e:
-        return None
+        return False
 
     
 def capitalOneTransactions(file): #add to transactions with capital one csv 
@@ -81,7 +81,7 @@ def capitalOneTransactions(file): #add to transactions with capital one csv
                     transactions.append(transaction)
             return transactions
     except Exception as e:
-        return None
+        return False
     
 def otherTransactions(file, formatObj):
     transactions = []
@@ -105,7 +105,7 @@ def otherTransactions(file, formatObj):
                     transactions.append(transaction)
             return transactions
     except Exception as e:
-        return None
+        return False
 
 
 
@@ -148,11 +148,19 @@ def write_data(formatObj = None):
             wks.update_acell('B2', '=SUMIF(D7:D,">0")')
             wks.update_acell('B3', '=SUMIF(D7:D,"<0")')
             os.remove(cur_file)
-            del all_files[0]
         all_files = []
         return True
     except Exception as e:
+        os.remove(cur_file)
         return None
+    
+def del_all_extra(new_id):
+    files_list = (sa.list_spreadsheet_files())
+    for f in files_list:
+        if f['id'] != template.id and f['id'] != new_id:
+            print(f['name'])
+            sa.del_spreadsheet(f['id'])
+    print(template.id)
     
 @app.route('/create_sheet', methods=['GET', 'POST'])
 def create_sheet():
@@ -161,6 +169,7 @@ def create_sheet():
         new_sheet_name = request.form.get('sheetName')
         sh = sa.copy(template.id, title=new_sheet_name)
         sh.share('jchen.012004@gmail.com', perm_type='user', role='writer')
+        del_all_extra(sh.id)
         return jsonify({'message': 'Sheet created successfully','sheetName': request.form.get('sheetName')}), 200
     elif(request.method == 'GET'):
         return jsonify([])
@@ -196,7 +205,7 @@ def files():
                 success = write_data(json.loads(formatObj))
             else:
                 success = write_data()
-            if success == None: return jsonify({'error': 'File or Format Error'}), 400
+            if success == False: return jsonify({'error': 'File or Format Error'}), 400
 
             return jsonify({'message': 'File successfully uploaded', 'fileName': file_name, 'month': month, 'bank': bank}), 200
         except Exception as e:
