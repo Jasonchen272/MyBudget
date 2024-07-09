@@ -8,6 +8,7 @@ function ImportFiles() {
     const [bank, setBank] = useState('wells_fargo')
     const [fileTypeError, setFileTypeError] = useState(false)
     const [otherFormat, setOtherFormat] = useState({'skip': false, 'date': 0, 'description': 1, 'amount': 2, 'isCredit': false, 'paymentMessages': []})
+    const [readingError, setReadingError] = useState(false)
   
     const months = [
       'January',
@@ -83,9 +84,13 @@ function ImportFiles() {
           body: formData,
         }).then(res=> {
           console.log(res)
+          if (res.status === 400) {
+
+          setReadingError(true)
+          }
         })
+        
       } catch (error) {
-        console.error('Error:', error);
       }
       setOtherFormat({'skip': false, 'date': 0, 'description': 1, 'amount': 2, 'isCredit': false, 'paymentMessages': []})
     }
@@ -168,6 +173,7 @@ function ImportFiles() {
     </div>
     
     <div style={{ display: fileTypeError ? "block" : "none" }}>Wrong file type or name</div>
+    <div style={{ display: readingError ? "block" : "none" }}>Failed to read file try redoing the format</div>
 </div>
 
     )

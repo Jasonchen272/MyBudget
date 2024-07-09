@@ -15,6 +15,7 @@ ALLOWED_EXTENSIONS = {'csv'}
 transactions = []
 
 
+
 def wellsFargoTrans(file): #add to transactions with wells fargo csv
     transactions = []
     try:
@@ -34,10 +35,8 @@ def wellsFargoTrans(file): #add to transactions with wells fargo csv
                     transaction = ([date, amount, name, category])
                     transactions.append(transaction)
             return transactions
-    except IOError as e:
-        return transactions         
-    except IOError as e:
-        return transactions
+    except Exception as e:
+        return None
 
 
     
@@ -59,13 +58,12 @@ def discoverTransactions(file): #add to transactions with discover csv
                     transaction = ([date, amount, name, category])
                     transactions.append(transaction)
             return transactions
-    except IOError as e:
-        return transactions
+    except Exception as e:
+        return None
 
     
 def capitalOneTransactions(file): #add to transactions with capital one csv 
     transactions = []
-
     try:
         with open(file, mode = 'r') as csvfile:
             csv_reader = csv.reader(csvfile)
@@ -82,9 +80,8 @@ def capitalOneTransactions(file): #add to transactions with capital one csv
                     transaction = ([date, amount, name, category])
                     transactions.append(transaction)
             return transactions
-    except IOError as e:
-        print(e)
-        return transactions
+    except Exception as e:
+        return None
     
 def otherTransactions(file, formatObj):
     transactions = []
@@ -107,16 +104,14 @@ def otherTransactions(file, formatObj):
                     transaction = ([date, amount, name, category])
                     transactions.append(transaction)
             return transactions
-    except IOError as e:
-        return transactions
     except Exception as e:
-        print(e)
-        return transactions
+        return None
 
 
 
-sa = gspread.service_account()  
-sh = sa.open("Expenses 2") #sheets we will edit
+sa = gspread.service_account(filename = "avian-sunlight-423320-q2-89a5759c0252.json")  
+template = sa.open("Expenses 2") #sheets we will edit
+sh = None
 
 app = Flask(__name__)   
 CORS(app, resources={r"/files": {"origins": "http://localhost:3000"},
@@ -155,14 +150,26 @@ def write_data(formatObj = None):
             os.remove(cur_file)
             del all_files[0]
         all_files = []
-        return jsonify({'Success': True}), 200
+        return True
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return None
+    
+@app.route('/create_sheet', methods=['GET', 'POST'])
+def create_sheet():
+    global sh
+    if request.method == 'POST':
+        new_sheet_name = request.form.get('sheetName')
+        sh = sa.copy(template.id, title=new_sheet_name)
+        sh.share('jchen.012004@gmail.com', perm_type='user', role='writer')
+        return jsonify({'message': 'Sheet created successfully','sheetName': request.form.get('sheetName')}), 200
+    elif(request.method == 'GET'):
+        return jsonify([])
 
 @app.route('/files', methods=['POST', 'GET'])
 def files():
     if (request.method == 'POST'):
         global all_files
+        global sh
         try:
             if 'file' not in request.files:
                 return jsonify({'error': 'No file part'}), 400
@@ -183,12 +190,13 @@ def files():
             file.save(app.config['UPLOAD_FOLDER']+ filename)
 
             all_files.append({'file': file, 'month': month, 'bank': bank, "filename": app.config['UPLOAD_FOLDER']+file_name})
+            success = True
             if bank == 'other':
                 formatObj = request.form.get('otherFormat')
-                print(formatObj)
-                write_data(json.loads(formatObj))
+                success = write_data(json.loads(formatObj))
             else:
-                write_data()
+                success = write_data()
+            if success == None: return jsonify({'error': 'File or Format Error'}), 400
 
             return jsonify({'message': 'File successfully uploaded', 'fileName': file_name, 'month': month, 'bank': bank}), 200
         except Exception as e:
@@ -196,14 +204,6 @@ def files():
     elif(request.method == 'GET'):
         return jsonify(all_files)
     
-@app.route('/create_sheet', methods=['GET', 'POST'])
-def create_sheet():
-    if request.method == 'POST':
-        sh = sa.create(request.form.get('sheetName'))
-        sh.share('jchen.012004@gmail.com', perm_type='user', role='writer')
-        return jsonify({'message': 'Sheet created successfully','sheetName': request.form.get('sheetName')}), 200
-    elif(request.method == 'GET'):
-        return jsonify([])
 
 
 
