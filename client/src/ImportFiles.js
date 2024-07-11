@@ -10,6 +10,7 @@ function ImportFiles() {
     const [otherFormat, setOtherFormat] = useState({'skip': false, 'date': 0, 'description': 1, 'amount': 2, 'isCredit': false, 'paymentMessages': []})
     const [readingError, setReadingError] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
+    const [isExporting, setIsExporting] = useState(false)
   
     const months = [
       'January',
@@ -68,6 +69,7 @@ function ImportFiles() {
   
       if (!file) {
         setFileTypeError(true)
+        setIsUploading(false)
         return;
       }
       const formData = new FormData();
@@ -93,10 +95,48 @@ function ImportFiles() {
         })
         
       } catch (error) {
+        setIsUploading(false)
       } finally {
         setIsUploading(false)
       }
       setOtherFormat({'skip': false, 'date': 0, 'description': 1, 'amount': 2, 'isCredit': false, 'paymentMessages': []})
+    }
+
+    const handleExport = async () => {
+      setIsExporting(true)
+      try {
+        await fetch("http://localhost:5000/export", {
+          method: "GET", 
+        }).then(res => 
+        res.blob())
+        .then((blob) => {
+          const url = window.URL.createObjectURL(
+            new Blob([blob]),
+          );
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute(
+            'download',
+            `MyBudget.xlsx`,
+          );
+
+          // Append to html link element page
+          document.body.appendChild(link);
+
+          // Start download
+          link.click();
+
+          // Clean up and remove the link
+          link.parentNode.removeChild(link);
+        }
+        )
+      } catch (e){
+        console.log(e)
+        console.log("Error")
+      } finally {
+        setIsExporting(false)
+      }
+
     }
   
     return (
@@ -117,8 +157,9 @@ function ImportFiles() {
         <option value="capital_one">Capital One</option>
         <option value="other">Other</option>
       </select>  
-      <button type="submit" disabled={isUploading}>{isUploading ? "Uploading" : "Upload"}</button>
+      <button type="submit" disabled={isUploading}>{isUploading ? "Uploading..." : "Upload"}</button>
     </form>
+    <button onClick={handleExport}>{isExporting ? "Downloading..." : "Download"}</button>
     <div style={{ display: bank === "other" ? "block" : "none" }}> 
       Please input the format of your file
       <CheckBox 

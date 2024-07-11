@@ -1,7 +1,8 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import csv
 import gspread
+from gspread.utils import ExportFormat
 import time
 import os
 from werkzeug.utils import secure_filename
@@ -116,7 +117,8 @@ sh = None
 app = Flask(__name__)   
 CORS(app, resources={r"/files": {"origins": "http://localhost:3000"},
                      r"/uploadSheets": {"origins": "http://localhost:3000"},
-                     r"/create_sheet": {"origins": "http://localhost:3000"}})
+                     r"/create_sheet": {"origins": "http://localhost:3000"},
+                     r"/export": {"origins": "http://localhost:3000"}})
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 def allowed_file(filename): #only csv files
@@ -214,6 +216,21 @@ def files():
         return jsonify(all_files)
     
 
+@app.route('/export', methods=["GET"])
+def download_file():
+    global sh
+    if (request.method == "GET"):
+        if sh != None:
+            exported = sh.export(format=ExportFormat.EXCEL)
+            f = open("MyBudget.xlsx", 'wb')
+            f.write(exported)
+            f.close()
+            sa.del_spreadsheet(sh.id)
+            sh = None
+            print("success")
+            return send_file("MyBudget.xlsx")
+    print("error")
+    return jsonify({"error": "error"})
 
 
 
